@@ -1,11 +1,11 @@
 {
-  "name": "SPIFlash",
+  "name": "SPIFlashA",
   "keywords": "flash, spi",
-  "description": "Library for read/write access to SPI flash memory chips",
+  "description": "Library for read/write access to SPI flash memory chips (Spanion chips version)",
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/LowPowerLab/SPIFlash.git"
+    "url": "https://github.com/jrbenito/SPIFlashA.git"
   },
   "frameworks": "arduino",
   "platforms": "atmelavr"
