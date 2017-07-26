@@ -8,8 +8,10 @@
 // - [0-9] writes a random byte to addresses [0-9] (either 0xAA or 0xBB)
 // Get the SPIFlash library from here: https://github.com/LowPowerLab/SPIFlash
 // **********************************************************************************
-// Copyright Felix Rusu, LowPowerLab.com
+// Original Copyright Felix Rusu, LowPowerLab.com
 // Library and code by Felix Rusu - felix@lowpowerlab.com
+// Adapted to Spanion SPI flash by Josenivaldo Benito Junior
+// Based on the SPIFlashA adapted from this by Robert (https://github.com/rrobinet)
 // **********************************************************************************
 // License
 // **********************************************************************************
@@ -37,7 +39,7 @@
 // **********************************************************************************
 
 
-#include <SPIFlash.h>    //get it here: https://github.com/LowPowerLab/SPIFlash
+#include <SPIFlashA.h>    //get it here: https://github.com/LowPowerLab/SPIFlash
 #include <SPI.h>
 
 #define SERIAL_BAUD      115200
@@ -57,8 +59,9 @@ long lastPeriod = -1;
 // SPI_CS          - CS pin attached to SPI flash chip (8 in case of Moteino)
 // MANUFACTURER_ID - OPTIONAL, 0x1F44 for adesto(ex atmel) 4mbit flash
 //                             0xEF30 for windbond 4mbit flash
+//                             0x12018 for Spanion 128mbit (in case of MiniWireless)
 //////////////////////////////////////////
-SPIFlash flash(FLASH_SS, 0xEF30);
+SPIFlashA flash(FLASH_SS, 0x12018);
 
 void setup(){
   Serial.begin(SERIAL_BAUD);
