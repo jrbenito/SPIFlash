@@ -1,57 +1,49 @@
-// Copyright (c) 2013-2015 by Felix Rusu, LowPowerLab.com
-// SPI Flash memory library for arduino/moteino.
-// This works with 256byte/page SPI flash memory
-// For instance a 4MBit (512Kbyte) flash chip will have 2048 pages: 256*2048 = 524288 bytes (512Kbytes)
-// Minimal modifications should allow chips that have different page size but modifications
-// DEPENDS ON: Arduino SPI library
-// > Updated Jan. 5, 2015, TomWS1, modified writeBytes to allow blocks > 256 bytes and handle page misalignment.
-// > Updated Feb. 26, 2015 TomWS1, added support for SPI Transactions (Arduino 1.5.8 and above)
-// > Selective merge by Felix after testing in IDE 1.0.6, 1.6.4
-// **********************************************************************************
-// License
-// **********************************************************************************
-// This program is free software; you can redistribute it 
-// and/or modify it under the terms of the GNU General    
-// Public License as published by the Free Software       
-// Foundation; either version 3 of the License, or        
-// (at your option) any later version.                    
-//                                                        
-// This program is distributed in the hope that it will   
-// be useful, but WITHOUT ANY WARRANTY; without even the  
-// implied warranty of MERCHANTABILITY or FITNESS FOR A   
-// PARTICULAR PURPOSE. See the GNU General Public        
-// License for more details.                              
-//                                                        
-// You should have received a copy of the GNU General    
-// Public License along with this program.
-// If not, see <http://www.gnu.org/licenses/>.
-//                                                        
-// Licence can be viewed at                               
-// http://www.gnu.org/licenses/gpl-3.0.txt
-//
-// Please maintain this license information along with authorship
-// and copyright notices in any redistribution of this code
+/*
+ * SPI Flash memory library for anarduino.
+ * This works with 256byte/page SPI flash memory (typically SPANSION S25FL127S)
+ * For instance a 128MBit (16Mbyte) flash chip will have 65536 pages: 256*65536 = 16777216 bytes (16MKbytes)
+ * This library uses the same function ones as the Moteino SPIFlash and is interned to be used for wireless programming
+ * using the Moteino terminology for Anarduino
+ * See http://lowpowerlab.com/blog/category/moteino/wireless-programming/ and https://github.com/LowPowerLab/WirelessProgramming 
+ * Therefore only a limited set of SPANSION programming functions are implemented to erase, read and write the Flash memory
+ *
+ * NOTES:
+ *		The Anarduino SPANSION Flash memory (S25FL127S) uses a SPI command interface that is slightly different than the one used by the
+ *		Moteino WINBOND (W25X40CL).
+ *		1. Deep Power mode (Down/Sleep 0xB9 and Release/Wakeup 0xAB) mode is not implemented, the equivalent Moteino SPIFlash functions are therefore programmed as a NOOP
+ *		   for compatibility reasons
+ *		2. blockErase34K(); (0x52) command is not exactly implemented as for the WINBOND, instead it generates a 8 * blockErase4K() fore compatibility
+ *		3. The chipErase(); (0x60) which in the case of the WINBOND is equivalent to a 512K Block erase is simulated by a 8 * blockErase64K(), the actual Chip Erase 
+ *		   which takes quite a long time (typically 45 seconds for 16 MBytes) is implemented as a new function (bulkErase()) in case of need;
+ * 		4. The WINBOND Unique Identifier 8 Bytes value is replaced by a 12 last Bytes of the fisrt 16 Bytes OTP (Manufacturer One Time Program) which is obtained using 
+ *		   the readUniqueId () command
+ *			Note from the specs:
+ *				The OTP 16 lowest address bytes are programmed by Spansion with a 128-bit random number. Only Spansion is able to program these bytes.
+ *		5. The JEDEC identifier for the S25FL127S is 0x12018
+ *			Note:
+ *				1st Byte:  0x01 Manufacturer ID for Spansion
+ *				2nd Byte:  0x20 (128 Mb) Device ID Most Significant Byte - Memory Interface Type
+ *				3rd Byte:  0x18 (128 Mb) Device ID Least Significant Byte - Density 
+ *		6. A new command printRDID (), is implemented to dump the Manufacturer and Device ID 320Bytes table
+ *		7. A new command printStatus(), is implemented to print the status registers 1 and 2 
+ *
+ * This file is free software; you can redistribute it and/or modify
+ * it under the terms of either the GNU General Public License version 2
+ * or the GNU Lesser General Public License version 2.1, both as
+ * published by the Free Software Foundation.
+*/
 
-#include <SPIFlash.h>
+#include <SPIFlashA.h>
 
-uint8_t SPIFlash::UNIQUEID[8];
+uint8_t SPIFlashA::UNIQUEID[12];
 
-/// IMPORTANT: NAND FLASH memory requires erase before write, because
-///            it can only transition from 1s to 0s and only the erase command can reset all 0s to 1s
-/// See http://en.wikipedia.org/wiki/Flash_memory
-/// The smallest range that can be erased is a sector (4K, 32K, 64K); there is also a chip erase command
-
-/// Constructor. JedecID is optional but recommended, since this will ensure that the device is present and has a valid response
-/// get this from the datasheet of your flash chip
-/// Example for Atmel-Adesto 4Mbit AT25DF041A: 0x1F44 (page 27: http://www.adestotech.com/sites/default/files/datasheets/doc3668.pdf)
-/// Example for Winbond 4Mbit W25X40CL: 0xEF30 (page 14: http://www.winbond.com/NR/rdonlyres/6E25084C-0BFE-4B25-903D-AE10221A0929/0/W25X40CL.pdf)
-SPIFlash::SPIFlash(uint8_t slaveSelectPin, uint16_t jedecID) {
+SPIFlashA::SPIFlashA(uint8_t slaveSelectPin, uint32_t jedecID) {
   _slaveSelectPin = slaveSelectPin;
   _jedecID = jedecID;
 }
 
 /// Select the flash chip
-void SPIFlash::select() {
+void SPIFlashA::select() {
   //save current SPI settings
 #ifndef SPI_HAS_TRANSACTION
   noInterrupts();
@@ -72,7 +64,7 @@ void SPIFlash::select() {
 }
 
 /// UNselect the flash chip
-void SPIFlash::unselect() {
+void SPIFlashA::unselect() {
   digitalWrite(_slaveSelectPin, HIGH);
   //restore SPI settings to what they were before talking to the FLASH chip
 #ifdef SPI_HAS_TRANSACTION
@@ -85,7 +77,7 @@ void SPIFlash::unselect() {
 }
 
 /// setup SPI, read device ID etc...
-boolean SPIFlash::initialize()
+boolean SPIFlashA::initialize()
 {
   _SPCR = SPCR;
   _SPSR = SPSR;
@@ -96,6 +88,7 @@ boolean SPIFlash::initialize()
 
   unselect();
   wakeup();
+  while (busy());		// Ensure the memory is ready after power up or restart
   
   if (_jedecID == 0 || readDeviceId() == _jedecID) {
     command(SPIFLASH_STATUSWRITE, true); // Write Status Register
@@ -106,17 +99,19 @@ boolean SPIFlash::initialize()
   return false;
 }
 
-/// Get the manufacturer and device ID bytes (as a short word)
-uint16_t SPIFlash::readDeviceId()
+/// Get the manufacturer and device ID bytes (as a long)
+uint32_t SPIFlashA::readDeviceId()
 {
+	uint32_t jedecid = 0;
 #if defined(__AVR_ATmega32U4__) // Arduino Leonardo, MoteinoLeo
   command(SPIFLASH_IDREAD); // Read JEDEC ID
 #else
   select();
   SPI.transfer(SPIFLASH_IDREAD);
 #endif
-  uint16_t jedecid = SPI.transfer(0) << 8;
-  jedecid |= SPI.transfer(0);
+  jedecid |= (uint32_t) SPI.transfer(0) <<16;
+  jedecid |= (uint32_t) SPI.transfer(0) << 8;
+  jedecid |= (uint32_t) SPI.transfer(0);
   unselect();
   return jedecid;
 }
@@ -124,24 +119,24 @@ uint16_t SPIFlash::readDeviceId()
 /// Get the 64 bit unique identifier, stores it in UNIQUEID[8]. Only needs to be called once, ie after initialize
 /// Returns the byte pointer to the UNIQUEID byte array
 /// Read UNIQUEID like this:
-/// flash.readUniqueId(); for (uint8_t i=0;i<8;i++) { Serial.print(flash.UNIQUEID[i], HEX); Serial.print(' '); }
+/// flash.readUniqueId(); for (uint8_t i=0;i<12;i++) { Serial.print(flash.UNIQUEID[i], HEX); Serial.print(' '); }
 /// or like this:
-/// flash.readUniqueId(); uint8_t* MAC = flash.readUniqueId(); for (uint8_t i=0;i<8;i++) { Serial.print(MAC[i], HEX); Serial.print(' '); }
-uint8_t* SPIFlash::readUniqueId()
+/// flash.readUniqueId(); byte* MAC = flash.readUniqueId(); for (byte i=0;i<12;i++) { Serial.print(MAC[i], HEX); Serial.print(' '); }
+uint8_t* SPIFlashA::readUniqueId()
 {
   command(SPIFLASH_MACREAD);
   SPI.transfer(0);
   SPI.transfer(0);
   SPI.transfer(0);
   SPI.transfer(0);
-  for (uint8_t i=0;i<8;i++)
+  for (uint8_t i=0;i<12;i++)				// Change from 8 to 12 for SPANSION
     UNIQUEID[i] = SPI.transfer(0);
   unselect();
   return UNIQUEID;
 }
 
 /// read 1 byte from flash memory
-uint8_t SPIFlash::readByte(uint32_t addr) {
+uint8_t SPIFlashA::readByte(uint32_t addr) {
   command(SPIFLASH_ARRAYREADLOWFREQ);
   SPI.transfer(addr >> 16);
   SPI.transfer(addr >> 8);
@@ -152,7 +147,7 @@ uint8_t SPIFlash::readByte(uint32_t addr) {
 }
 
 /// read unlimited # of bytes
-void SPIFlash::readBytes(uint32_t addr, void* buf, uint16_t len) {
+void SPIFlashA::readBytes(uint32_t addr, void* buf, uint16_t len) {
   command(SPIFLASH_ARRAYREAD);
   SPI.transfer(addr >> 16);
   SPI.transfer(addr >> 8);
@@ -164,7 +159,7 @@ void SPIFlash::readBytes(uint32_t addr, void* buf, uint16_t len) {
 }
 
 /// Send a command to the flash chip, pass TRUE for isWrite when its a write command
-void SPIFlash::command(uint8_t cmd, boolean isWrite){
+void SPIFlashA::command(uint8_t cmd, boolean isWrite){
 #if defined(__AVR_ATmega32U4__) // Arduino Leonardo, MoteinoLeo
   DDRB |= B00000001;            // Make sure the SS pin (PB0 - used by RFM12B on MoteinoLeo R1) is set as output HIGH!
   PORTB |= B00000001;
@@ -185,7 +180,7 @@ void SPIFlash::command(uint8_t cmd, boolean isWrite){
 }
 
 /// check if the chip is busy erasing/writing
-boolean SPIFlash::busy()
+boolean SPIFlashA::busy()
 {
   /*
   select();
@@ -198,7 +193,7 @@ boolean SPIFlash::busy()
 }
 
 /// return the STATUS register
-uint8_t SPIFlash::readStatus()
+uint8_t SPIFlashA::readStatus()
 {
   select();
   SPI.transfer(SPIFLASH_STATUSREAD);
@@ -211,7 +206,7 @@ uint8_t SPIFlash::readStatus()
 /// Write 1 byte to flash memory
 /// WARNING: you can only write to previously erased memory locations (see datasheet)
 ///          use the block erase commands to first clear memory (write 0xFFs)
-void SPIFlash::writeByte(uint32_t addr, uint8_t byt) {
+void SPIFlashA::writeByte(uint32_t addr, uint8_t byt) {
   command(SPIFLASH_BYTEPAGEPROGRAM, true);  // Byte/Page Program
   SPI.transfer(addr >> 16);
   SPI.transfer(addr >> 8);
@@ -225,7 +220,7 @@ void SPIFlash::writeByte(uint32_t addr, uint8_t byt) {
 ///          use the block erase commands to first clear memory (write 0xFFs)
 /// This version handles both page alignment and data blocks larger than 256 bytes.
 ///
-void SPIFlash::writeBytes(uint32_t addr, const void* buf, uint16_t len) {
+void SPIFlashA::writeBytes(uint32_t addr, const void* buf, uint16_t len) {
   uint16_t n;
   uint16_t maxBytes = 256-(addr%256);  // force the first set of bytes to stay within the first page
   uint16_t offset = 0;
@@ -254,13 +249,24 @@ void SPIFlash::writeBytes(uint32_t addr, const void* buf, uint16_t len) {
 /// other things and later check if the chip is done with busy()
 /// note that any command will first wait for chip to become available using busy()
 /// so no need to do that twice
-void SPIFlash::chipErase() {
+void SPIFlashA::bulkErase() {
   command(SPIFLASH_CHIPERASE, true);
   unselect();
 }
 
+/// erase 512 KBytes of memory (equivalent size of a WINBOND W25X40CL Moteino memory)
+/// may take several seconds depending on size, but is non blocking
+/// so you may wait for this to complete using busy() or continue doing
+/// other things and later check if the chip is done with busy()
+/// note that any command will first wait for chip to become available using busy()
+/// so no need to do that twice
+void SPIFlashA::chipErase() {
+  blockErase512K(0);
+  }
+
+
 /// erase a 4Kbyte block
-void SPIFlash::blockErase4K(uint32_t addr) {
+void SPIFlashA::blockErase4K(uint32_t addr) {
   command(SPIFLASH_BLOCKERASE_4K, true); // Block Erase
   SPI.transfer(addr >> 16);
   SPI.transfer(addr >> 8);
@@ -269,34 +275,71 @@ void SPIFlash::blockErase4K(uint32_t addr) {
 }
 
 /// erase a 32Kbyte block
-void SPIFlash::blockErase32K(uint32_t addr) {
-  command(SPIFLASH_BLOCKERASE_32K, true); // Block Erase
-  SPI.transfer(addr >> 16);
-  SPI.transfer(addr >> 8);
-  SPI.transfer(addr);
-  unselect();
+void SPIFlashA::blockErase32K(uint32_t addr) {
+ for (int i = 0; i <8; i++)
+ {
+  blockErase4K (addr);				// Erase 8*4K consecutive Bytes
+  addr = addr+4096;
+  }
 }
 
 /// erase a 64Kbyte block
-void SPIFlash::blockErase64K(uint32_t addr) {
+void SPIFlashA::blockErase64K(uint32_t addr) {
   command(SPIFLASH_BLOCKERASE_64K, true); // Block Erase
   SPI.transfer(addr >> 16);
   SPI.transfer(addr >> 8);
   SPI.transfer(addr);
   unselect();
 }
+/// erase a 512Kbyte block
+void SPIFlashA::blockErase512K(uint32_t addr) {
+ for (int i = 0; i <8; i++)
+ {
+  blockErase64K (addr);				// Erase 8*64K consecutive Bytes
+  addr = addr+65536;
+  }
+}
 
-void SPIFlash::sleep() {
-  command(SPIFLASH_SLEEP);
+/// Print the STATUS register 1&2
+void SPIFlashA::printStatus()
+{
+  select();
+  SPI.transfer(SPIFLASH_STATUSREAD);
+  Serial.print ("\n\rStatus Register 1 (Binary): "),Serial.println (SPI.transfer(0),BIN);
+  SPI.transfer(SPIFLASH_STATUSREAD2);
+  Serial.print ("Status Register 2 (Binary): "),Serial.println (SPI.transfer(0),BIN);
   unselect();
 }
 
-void SPIFlash::wakeup() {
-  command(SPIFLASH_WAKE);
-  unselect();
+/// Print 320 Bytes of the Manufacturer ID and Common Flash Information table (CFI)
+void SPIFlashA::printRDID() {
+ long rdid ;
+  select ();
+    SPI.transfer(SPIFLASH_IDREAD);
+  for(int i=0; i<320; i++) {
+     byte b = SPI.transfer(0x00);
+     rdid += b;
+     if(i>0 && i%32 ==0) Serial.println();
+     if(b<0x10) Serial.print("0");
+     Serial.print(b,HEX);
+     Serial.print(" ");
+  }
+  Serial.println();
+ unselect();     
+}
+
+
+void SPIFlashA::sleep() {
+//  command(SPIFLASH_SLEEP);		// NOOP FOR SPANSION
+//  unselect();
+}
+
+void SPIFlashA::wakeup() {
+//  command(SPIFLASH_WAKE);			// NOOP FOR SPANSION
+//  unselect();
 }
 
 /// cleanup
-void SPIFlash::end() {
+void SPIFlashA::end() {
   SPI.end();
 }
