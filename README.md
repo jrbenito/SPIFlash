@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/LowPowerLab/SPIFlash.svg?branch=master)](https://travis-ci.org/LowPowerLab/SPIFlash)
-SPIFlash
+[![Build Status](https://travis-ci.org/jrbenito/SPIFlashA.svg?branch=SPIFlashA)](https://travis-ci.org/jrbenito/SPIFlashA)
+SPIFlashA
 ========
 Arduino/Moteino library for read/write access to SPI flash memory chips.
 This works with 256byte/page SPI flash memory such as the 4MBIT W25X40CLSNIG used on [Moteino](www.moteino.com) for data storage and wireless programming.
