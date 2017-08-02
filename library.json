@@ -1,7 +1,7 @@
 {
   "name": "SPIFlashA",
-  "keywords": "flash, spi",
-  "description": "Library for read/write access to SPI flash memory chips (Spanion chips version)",
+  "keywords": "flash, spi, S25FL127S",
+  "description": "Spansion chips version of LowPowerLab SPIFlash library for read/write access to SPI flash memory chips",
   "repository":
   {
     "type": "git",
