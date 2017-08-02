@@ -1,4 +1,13 @@
-[![Build Status](https://travis-ci.org/jrbenito/SPIFlashA.svg?branch=master)](https://travis-ci.org/jrbenito/SPIFlashA)
+[![Build Status](https://travis-ci.org/jrbenito/SPIFlashA.svg?branch=SPIFlashA)](https://travis-ci.org/jrbenito/SPIFlashA)
+# SPIFlashA
+
+Anarduino Miniwireless version of SPIFlash from LowPowerLab (below).
+
+This works with Spansion S25FL127S 128Mbit. It was designed to be a drop in replacement for Felix version (below) and should provide similar functionalities for the Spansion chip.
+
+The original porting to Spansion chip was done by Robert on his [repository](https://github.com/rrobinet/SPIFlashA/). I cloned Felix repository, applied Robert's version over and upgraded 
+to latest version from Felix in order to upmerge Robert's wonderfull work.
+
 SPIFlash
 ========
 Arduino/Moteino library for read/write access to SPI flash memory chips.
