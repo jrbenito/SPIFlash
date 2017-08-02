@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/jrbenito/SPIFlashA.svg?branch=SPIFlashA)](https://travis-ci.org/jrbenito/SPIFlashA)
+[![Build Status](https://travis-ci.org/jrbenito/SPIFlashA.svg?branch=master)](https://travis-ci.org/jrbenito/SPIFlashA)
 # SPIFlashA
 
 Anarduino Miniwireless version of SPIFlash from LowPowerLab (below).
