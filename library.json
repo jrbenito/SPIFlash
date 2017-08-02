@@ -2,6 +2,23 @@
   "name": "SPIFlashA",
   "keywords": "flash, spi, S25FL127S",
   "description": "Spansion chips version of LowPowerLab SPIFlash library for read/write access to SPI flash memory chips",
+  "authors":
+  [
+      {
+          "name": "Felix Rusu",
+          "url": "https://github.com/LowPowerLab"
+      },
+      {
+          "name": "Robert de La Montagne",
+          "url": "https://github.com/rrobinet"
+      },
+      {
+          "name": "Josenivaldo Benito Junior",
+          "url": "https://benito.com.br",
+          "email": "jrbenito@benito.qsl.br",
+          "maintaner": true
+      }
+  ],
   "repository":
   {
     "type": "git",
